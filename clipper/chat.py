@@ -10,8 +10,9 @@ from collections import Counter, deque
 from .util import log
 
 HYPE = re.compile(
-    r"(kekw|lul|lmao|omegalul|pog|poggers|pogchamp|monkas|wtf|xd|ахах|хаха|лол|кек|"
-    r"жесть|ору|пхах|ахуе|охуе|ебат|бля|нифига|wow|омг|omg|!!!|\?\?\?)",
+    r"(kekw|lul|lmao|lmfao|omegalul|icant|pog|poggers|pogchamp|monkas|wtf|xd|clip it|clip that|"
+    r"clipped|no way|nah+|bro+|holy|insane|crazy|w+ |💀|😭|🤣|😂|‼|"
+    r"ахах|хаха|лол|кек|жесть|ору|!!!|\?\?\?)",
     re.IGNORECASE)
 
 

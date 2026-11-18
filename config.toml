@@ -54,20 +54,21 @@ font = "Arial Black"
 fps = 30
 subtitles = true
 # Язык стрима для субтитров ("ru", "en" ...) или "auto"
-language = "ru"
+language = "en"
 # Модель распознавания речи: "auto" сам выберет под компьютер
 whisper_model = "auto"
 # Звуковые эффекты (вжух в начале, удар на моменте)
 sfx = true
 # Тексты-хуки сверху в первые секунды. {streamer} заменяется на ник.
 hook_texts = [
-  "{streamer} НЕ ОЖИДАЛ ЭТОГО",
-  "ЧАТ В ШОКЕ",
-  "ЭТО НАДО ВИДЕТЬ",
-  "GTA 6 СЛОМАЛАСЬ?!",
-  "СМОТРИ ДО КОНЦА",
-  "ЧТО ОН СДЕЛАЛ?!",
-  "{streamer} В ШОКЕ",
+  "{streamer} WAS NOT READY",
+  "CHAT LOST IT",
+  "WAIT FOR IT...",
+  "GTA 6 IS BROKEN?!",
+  "WATCH TILL THE END",
+  "WHAT DID HE JUST DO?!",
+  "{streamer} CAN'T BELIEVE IT",
+  "THIS IS INSANE",
 ]
 
 
@@ -84,3 +85,26 @@ enabled = false
 bot_token = ""
 # Ваш chat id. Узнать: напишите боту /start и запустите  ./start.command --telegram-setup
 chat_id = ""
+
+
+[auto]
+# Автовыбор: программа сама берёт самые смотрибельные живые стримы категории
+# и каждые refresh_minutes обновляет список. Каналы из channels = [...] остаются всегда.
+enabled = false
+# Бесплатно: dev.twitch.tv/console → Register Your Application
+# (OAuth Redirect URL: http://localhost, Category: Application Integration) → Client ID + New Secret
+client_id = ""
+client_secret = ""
+game_name = "Grand Theft Auto VI"
+language = "en"
+# Сколько стримов берёт ЭТОТ компьютер и сколько верхних мест пропустить
+# (чтобы 3 компьютера не брали одних и тех же):
+#   M5:  top_n = 4, skip_top = 0   (места 1-4)
+#   M3:  top_n = 3, skip_top = 4   (места 5-7)
+#   2015: top_n = 1, skip_top = 7  (место 8)
+top_n = 4
+skip_top = 0
+min_viewers = 300
+refresh_minutes = 5
+# Кого никогда не брать (например, стримеры, запретившие нарезки)
+exclude = []

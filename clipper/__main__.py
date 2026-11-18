@@ -17,7 +17,7 @@ from .chat import ChatReader
 from .editor import render_clip
 from .recorder import Recorder
 from .util import ROOT, load_config, log, need_binary
-from . import telegram
+from . import discover, telegram
 
 
 def main():
@@ -28,6 +28,7 @@ def main():
                     help="секунда момента в тестовом файле")
     ap.add_argument("--chat-test")
     ap.add_argument("--telegram-setup", action="store_true")
+    ap.add_argument("--top", action="store_true", help="показать топ живых стримов категории")
     args = ap.parse_args()
     cfg = load_config(args.config)
     work = ROOT / ".work"
@@ -35,6 +36,10 @@ def main():
 
     if args.telegram_setup:
         telegram.setup(cfg)
+        return
+    if args.top:
+        for login, viewers, title in discover.top_streams(cfg.get("auto", {}))[:25]:
+            print(f"{viewers:>8}  twitch.tv/{login:<25} {title[:70]}")
         return
     need_binary("ffmpeg")
     need_binary("ffprobe")
@@ -84,17 +89,18 @@ def test_file(args, cfg, work):
 
 
 def run_live(cfg, work):
-    channels = [c.strip().lower() for c in cfg.get("channels", []) if c.strip()]
-    if not channels:
-        sys.exit("В config.toml не указаны каналы (channels = [...])")
+    fixed = [c.strip().lower() for c in cfg.get("channels", []) if c.strip()]
+    auto = cfg.get("auto", {})
+    if not fixed and not auto.get("enabled"):
+        sys.exit("В config.toml нет каналов (channels = [...]) и выключен [auto]")
     length, after, reaction = clip_window(cfg)
     jobs: queue.Queue = queue.Queue()
-    recorders = {}
+    recorders, chats = {}, {}
 
     def make_handler(ch):
         def on_spike(s):
-            rec = recorders[ch]
-            if not rec.live:
+            rec = recorders.get(ch)
+            if not rec or not rec.live:
                 return
             moment = s["time"] - reaction
             log(ch, f"МОМЕНТ! чат x{s['score']:.1f} ({s['count']} сообщ., обычно "
@@ -102,11 +108,21 @@ def run_live(cfg, work):
             jobs.put((ch, moment, s))
         return on_spike
 
-    for ch in channels:
+    def start_channel(ch):
         rec = Recorder(ch, cfg, work)
         recorders[ch] = rec
         rec.start()
-        ChatReader(ch, cfg, make_handler(ch)).start()
+        chats[ch] = ChatReader(ch, cfg, make_handler(ch))
+        chats[ch].start()
+        log("main", f"+ слежу за {ch}")
+
+    def stop_channel(ch):
+        recorders[ch].stop()
+        chats.pop(ch).stop()
+        log("main", f"- больше не слежу за {ch}")
+
+    for ch in fixed:
+        start_channel(ch)
 
     def worker():
         while True:
@@ -128,7 +144,7 @@ def run_live(cfg, work):
                 src.unlink(missing_ok=True)
                 if cfg["telegram"].get("enabled"):
                     cap = (f"twitch.tv/{ch} · {time.strftime('%H:%M:%S', time.localtime(moment))}\n"
-                           f"чат x{s['score']:.1f} · {', '.join(s['top'][:4])}")
+                           f"chat x{s['score']:.1f} · {', '.join(s['top'][:4])}")
                     for o in outs:
                         telegram.send_video(cfg, o, cap)
             except Exception as e:
@@ -139,10 +155,30 @@ def run_live(cfg, work):
     for _ in range(max(1, int(cfg.get("render_workers", 1)))):
         threading.Thread(target=worker, daemon=True).start()
 
-    log("main", f"слежу за: {', '.join(channels)}. Клипы: {cfg['output_dir']}. "
-                "Остановить: Ctrl+C")
+    log("main", f"клипы: {cfg['output_dir']}. Остановить: Ctrl+C")
+    next_refresh = 0
     try:
         while True:
+            if auto.get("enabled") and time.time() >= next_refresh:
+                next_refresh = time.time() + 60 * float(auto.get("refresh_minutes", 5))
+                try:
+                    want = set(discover.pick(auto, taken=set(fixed)))
+                    current = set(chats) - set(fixed)
+                    # keep a channel we already follow while it is still live and in the
+                    # wider top (avoids losing its buffer because it slipped one place)
+                    wider = {l for l, _, _ in discover.top_streams(auto)[
+                        : int(auto.get("skip_top", 0)) + int(auto.get("top_n", 3)) + 3]}
+                    for ch in current - want:
+                        if ch not in wider:
+                            stop_channel(ch)
+                    room = int(auto.get("top_n", 3)) - len(set(chats) - set(fixed))
+                    for ch in [c for c in discover.pick(auto, taken=set(fixed)) if c not in chats]:
+                        if room <= 0:
+                            break
+                        start_channel(ch)
+                        room -= 1
+                except Exception as e:
+                    log("auto", f"не смог получить топ стримов: {e}")
             time.sleep(1)
     except KeyboardInterrupt:
         log("main", "остановлено")
