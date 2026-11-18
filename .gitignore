@@ -1,0 +1,6 @@
+.venv/
+.work/
+clips/
+__pycache__/
+*.pyc
+.warmup.wav
